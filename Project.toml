@@ -1,0 +1,41 @@
+name = "MadIPMBenchmark"
+uuid = "41da1b54-d6b6-4755-9037-c326a78c2ed7"
+version = "0.1.0"
+
+[deps]
+Adapt = "79e6a3ab-5dfb-504d-930d-738a2a938a0e"
+BenchmarkFormat = "6d1f3b8e-42a7-4e1c-9a55-0f0f4c1d7e21"
+CUDA = "052768ef-5323-5732-b1bb-66c8b64840ba"
+CUDSS = "45b445bb-4962-46a0-9369-b4df9d0f772e"
+Dates = "ade2ca70-3891-5945-98fb-dc099432e06a"
+DelimitedFiles = "8bb1440f-4735-579b-a4ab-409b98df4dab"
+Distributed = "8ba89e20-285c-5b6f-9357-94700520ee1b"
+GZip = "92fee26a-97fe-5a0c-ad85-20a5f3185b63"
+HSL = "34c5aeac-e683-54a6-a0e9-6e0fdc586c50"
+HSL_jll = "017b0a0e-03f4-516a-9b91-836bbd1904dd"
+HiGHS = "87dc4568-4c63-4d18-b0c0-bb2238e4078b"
+KernelAbstractions = "63c18a36-062a-441e-b654-da1e3ab1ce7c"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+MIPLIB = "93a727b6-5edc-4a43-9139-9257ae55f08d"
+MadIPM = "4406d55e-1099-4ca6-ac6a-6cf051b10024"
+MadNLP = "2621e9c9-9eb4-46b1-8089-e8c72242dfb6"
+MadNLPGPU = "d72a61cc-809d-412f-99be-fd81f4b8a598"
+MadNLPHSL = "7fb6135f-58fe-4112-84ca-653cf5be0c77"
+NLPModels = "a4795742-8479-5a88-8948-cc11e1c8c1a6"
+Printf = "de0858da-6303-5e67-8744-51eddeeeb8d7"
+QPSReader = "10f199a5-22af-520b-b891-7ce84a7b1bd0"
+SHA = "ea8e919c-243c-51af-8825-aaa63cd721ce"
+SparseMatricesCOO = "fa32481b-f100-4b48-8dc8-c62f61b13870"
+TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
+
+[sources]
+BenchmarkFormat = {path = "format"}
+MIPLIB = {rev = "1f593493eeaf2a771bc9b2b7ade80cc1d5ff9061", url = "https://github.com/MadNLP/MIPLIB.jl"}
+MadIPM = {path = "madipm"}
+
+[compat]
+HSL = "0.5"
+NLPModels = "0.21.12"
+
+[benchmark]
+hsl = "2025.7.21"
