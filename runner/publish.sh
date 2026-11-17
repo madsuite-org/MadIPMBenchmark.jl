@@ -45,7 +45,7 @@ set -u
 here=$(cd "$(dirname "$0")/.." && pwd)
 site=${BENCHMARK_SITE:-https://benchmark.madsuite.org}
 cmd=${1:-}; shift || true
-note="" label="" local="" madipm="" what=master devices=cpu,cuda config=default options="" sets="" subset="" instances="" jobfile="" hsl="" work="" depot="" src="" every=5
+note="" label="" local="" madipm="" what=master devices=cpu,cuda config="" options="" sets="" subset="" instances="" jobfile="" hsl="" work="" depot="" src="" every=5
 for a in "$@"; do
     case "$a" in
         --devices=*) devices=${a#*=} ;; --config=*) config=${a#*=} ;; --options=*) options=${a#*=} ;;
@@ -82,7 +82,7 @@ if [ "$cmd" = new ]; then
     elif [[ $what =~ ^[0-9a-f]{40}$ ]]; then target="\"commit\": \"$what\""
     elif [[ $what =~ ^[A-Za-z0-9._/-]+$ ]]; then target="\"branch\": \"$what\""
     else echo "publish: give master, a pull request number, a branch or a commit" >&2; exit 2; fi
-    [[ $config =~ ^[a-z0-9_]+$ && $devices =~ ^(cpu|cuda|cpu,cuda)$ && $options =~ ^[A-Za-z0-9_.,=+(){}-]*$ && $sets =~ ^[a-z,]*$
+    [[ $config =~ ^([a-z0-9_]+(,[a-z0-9_]+)*)?$ && $devices =~ ^(cpu|cuda|cpu,cuda)$ && $options =~ ^[A-Za-z0-9_.,=+(){}-]*$ && $sets =~ ^[a-z,]*$
        && $subset =~ ^[a-z0-9=+,-]*$ && $instances =~ ^[A-Za-z0-9_.+,-]*$ ]] ||
         { echo "publish: bad --config, --devices, --options, --sets, --subset or --instances" >&2; exit 2; }
     [[ $label =~ ^[A-Za-z0-9\ \#().+_-]{0,40}$ ]] ||
@@ -91,7 +91,7 @@ if [ "$cmd" = new ]; then
     [[ ${#note} -le 200 && $note != *[\"\\]* ]] || { echo "publish: --note is up to 200 characters, without \" or \\" >&2; exit 2; }
     list=""
     [ -n "$instances" ] && list=", \"instances\": [\"${instances//,/\",\"}\"]"
-    body="{\"project\": \"madipm\", \"external\": true, $target, \"devices\": \"$devices\", \"config\": \"$config\", \"options\": \"$options\"${sets:+, \"sets\": \"$sets\"}${subset:+, \"subset\": \"$subset\"}$list, \"note\": \"$note\"${label:+, \"label\": \"$label\"}}"
+    body="{\"project\": \"madipm\", \"external\": true, $target, \"devices\": \"$devices\", ${config:+\"config\": \"$config\", }\"options\": \"$options\"${sets:+, \"sets\": \"$sets\"}${subset:+, \"subset\": \"$subset\"}$list, \"note\": \"$note\"${label:+, \"label\": \"$label\"}}"
     out=$(curl -sS -H @<(printf 'Authorization: Bearer %s\n' "$token") -H "Content-Type: application/json" --data-binary "$body" "$site/queue/api/jobs") ||
         { echo "publish: $site cannot be reached" >&2; exit 2; }
     id=$(json_field id <<< "$out") jtoken=$(json_field token <<< "$out")
@@ -100,7 +100,7 @@ if [ "$cmd" = new ]; then
     jobfile=${jobfile:-$PWD/benchmark-job-$id}
     (umask 077; printf '%s %s %s\n' "$site" "$id" "$jtoken" > "$jobfile")
     n=$(json_field instances <<< "$out")
-    echo "job $id: $(json_field sha <<< "$out"), $devices, $config${options:+, $options}${n:+, $n instances (${subset:-listed})}"
+    echo "job $id: $(json_field sha <<< "$out"), $devices, $(json_field config <<< "$out")${options:+, $options}${n:+, $n instances (${subset:-listed})}"
     echo "report: $(json_field report <<< "$out")"
     echo "job file: $jobfile (run each node with: runner/publish.sh run --job-file=$jobfile)"
     exit 0
