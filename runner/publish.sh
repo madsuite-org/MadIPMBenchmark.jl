@@ -244,7 +244,9 @@ ready || echo "publish: setting up $tree (or waiting for the node that is)"
             git -C "$tree/madipm" checkout -q --detach "$sha" || exit 3
         fi
         cp -a "$here" "$tree/harness" && rm -rf "$tree/harness/.git" "$tree/harness/madipm" "$tree/harness/.claude" "$tree/harness/results" || exit 3
-        (cd "$tree/harness" && julia --startup-file=no setup.jl "$tree/madipm" ${hsl:+--hsl=$hsl}) || exit 4
+        # nothing compiled while installing: everything is compiled below, into the compile depot of
+        # this kind of job (a GPU job's on a GPU node), never into the shared one without a driver
+        (cd "$tree/harness" && JULIA_PKG_PRECOMPILE_AUTO=0 julia --startup-file=no setup.jl "$tree/madipm" ${hsl:+--hsl=$hsl}) || exit 4
         touch "$tree/.ready" && echo ready >> "$tree.lock"
     fi
 ) 9>> "$tree.lock" || { setup_done; send failed; exit 4; }
@@ -252,18 +254,37 @@ cd "$tree/harness"
 # Julia compiles packages for the processor it runs on, so nodes of different processors sharing a
 # depot would keep recompiling over each other: each kind of processor has a depot of its own in
 # front of the shared one, for what it compiles, and compiles once, one node at a time.
-cpu=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1 | tr -c 'A-Za-z0-9\n' '_' | tr -s '_' | cut -c1-60)
-# and a GPU job's has its own too: CUDA's packages compiled on a machine without a GPU driver (a CPU
-# node of the same processor) record that there is none, and a GPU node loading them then finds no
-# CUDA runtime
-[ "$devices" = cpu ] || cpu="${cpu:-unknown}-gpu"
-mkdir -p "$depot/by-cpu/${cpu:-unknown}"
-export JULIA_DEPOT_PATH="$(readlink -f "$depot/by-cpu/${cpu:-unknown}"):$(readlink -f "$depot")"
-echo "publish: precompiling for $cpu (or waiting for the node that is)"
+key=$(sed -n 's/^model name[[:space:]]*: //p' /proc/cpuinfo | head -1 | tr -c 'A-Za-z0-9\n' '_' | tr -s '_' | cut -c1-60)
+base=$(readlink -f "$depot")
+if [ "$devices" != cpu ]; then
+    # A GPU job's depot sees none of the shared depot's compiled packages, only its packages and
+    # artifacts: CUDA's packages compiled where there was no GPU driver (a CPU node's install or
+    # job) record that there is none, and a GPU node that loads them finds no CUDA runtime (jobs 220,
+    # 230, 251). Measured on an RTX PRO 6000 node: CUDA did not work with the shared depot's compiled
+    # caches in view, and did with them hidden, the packages and artifacts the same.
+    # (a new name, so that no cache compiled against the shared depot's is taken for its own)
+    key="${key:-unknown}-gpu-isolated"
+    base=$base/gpu-view
+    mkdir -p "$base"
+    for x in packages artifacts registries scratchspaces; do
+        [ -e "$base/$x" ] || ln -s "../$x" "$base/$x"
+    done
+fi
+mkdir -p "$depot/by-cpu/${key:-unknown}"
+export JULIA_DEPOT_PATH="$(readlink -f "$depot/by-cpu/${key:-unknown}"):$base"
+echo "publish: precompiling for $key (or waiting for the node that is)"
 (
     flock 9 || exit 3
-    julia --startup-file=no --project=. -e 'using Pkg; Pkg.precompile()' || exit 4
-) 9> "$depot/by-cpu/${cpu:-unknown}.lock" || { setup_done; send failed; exit 4; }
+    # once more after a failure: a node of the same kind may have been writing the same cache (the
+    # "Permission denied" of jobs 242-244), which a second try finds done
+    julia --startup-file=no --project=. -e 'using Pkg; Pkg.precompile()' ||
+        { echo "publish: compiling failed; trying once more"; sleep 30; julia --startup-file=no --project=. -e 'using Pkg; Pkg.precompile()'; } || exit 4
+) 9> "$depot/by-cpu/${key:-unknown}.lock" || { setup_done; send failed; exit 4; }
+# a GPU node checks that CUDA works before taking any instance: if not, it leaves with EX_TEMPFAIL,
+# for a batch script to start another node elsewhere
+if [ "$devices" != cpu ] && ! julia --startup-file=no --project=. -e 'using CUDA; exit(CUDA.functional() ? 0 : 3)' >/dev/null 2>&1; then
+    echo "publish: CUDA does not work on this node; leaving"; setup_done; send failed >/dev/null; exit 75
+fi
 setup_done
 export BENCHMARK_CLAIM=$api/claim BENCHMARK_AUTH=$auth BENCHMARK_NODE=$node
 julia --startup-file=no --project=. run.jl "${sets:-netlib,mm,miplib}" --device="$devices" --config="$config" \
