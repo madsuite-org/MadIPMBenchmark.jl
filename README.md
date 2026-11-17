@@ -35,14 +35,20 @@ threw.
 
 ## Running a benchmark
 
-The website coordinates the machines and builds the report; every machine is one you bring. With a
-GitHub token of a member of madsuite-org (`gh auth token`):
+With [`madbench`](https://benchmark.madsuite.org/queue/help), the site's command line tool
+(`curl -fsSL https://benchmark.madsuite.org/queue/install.sh | sh`), and a GitHub token of a member of
+madsuite-org (`gh auth login`):
 
-    runner/publish.sh new main --note="baseline" --devices=cpu
-    runner/publish.sh run --job-file=./benchmark-job-<N>      # on each machine
+    madbench new madipm main --devices=cpu --note="baseline"     # a job; prints its number
+    madbench up JOB                                         # a node of it on this machine (-d: in the background)
+    madbench up JOB --slurm=4 --sbatch="--partition=... --time=06:00:00"   # or as Slurm batch jobs
+    madbench status JOB
+    madbench report madipm "title" JOB JOB
 
 `new` also takes a pull request number, a branch, a commit, or `--local=PATH`; `--sets` and
-`--instances` narrow the job. The top of `runner/publish.sh` documents every option.
+`--instances` narrow the job. A node clones this harness, sets up that commit and runs the instances
+the website hands out (`runner/publish.sh run`, which madbench runs); nodes can be added or stopped
+at any time.
 
 ## Running locally
 
